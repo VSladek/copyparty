@@ -1,18 +1,17 @@
-{
-  config,
-  pkgs,
-  lib,
-  ...
+{ config
+, pkgs
+, lib
+, ...
 }:
 with lib;
 let
   mkKeyValue =
     key: value:
     if value == true then
-      # sets with a true boolean value are coerced to just the key name
+    # sets with a true boolean value are coerced to just the key name
       key
     else if value == false then
-      # or omitted completely when false
+    # or omitted completely when false
       ""
     else
       (generators.mkKeyValueDefault { inherit mkValueString; } ": " key value);
@@ -324,10 +323,13 @@ in
             "-/etc/hosts"
             "-/etc/localtime"
           ] ++ (mapAttrsToList (k: v: "-${v.passwordFile}") cfg.accounts);
-          BindPaths =
-            (if cfg.settings ? hist then [ cfg.settings.hist ] else [ ])
-            ++ [ externalStateDir ]
-            ++ (mapAttrsToList (k: v: v.path) volumesWithoutVariables);
+          BindPaths = lib.forEach
+            (
+              (if cfg.settings ? hist then [ cfg.settings.hist ] else [ ])
+              ++ [ externalStateDir ]
+              ++ (mapAttrsToList (k: v: v.path) volumesWithoutVariables)
+            )
+            (path: lib.strings.concatStrings [ "\"" path "\"" ]);
           # ProtectSystem = "strict";
           # Note that unlike what 'ro' implies,
           # this actually makes it impossible to read anything in the root FS,
@@ -359,14 +361,15 @@ in
 
       # ensure volumes exist:
       systemd.tmpfiles.settings."copyparty" = (
-        lib.attrsets.mapAttrs' (
-          name: value:
-          lib.attrsets.nameValuePair (value.path) {
-            d = {
-              #: in front of things means it wont change it if the directory already exists.
-              group = ":${cfg.group}";
-              user = ":${cfg.user}";
-              mode = ":${
+        lib.attrsets.mapAttrs'
+          (
+            name: value:
+              lib.attrsets.nameValuePair (value.path) {
+                d = {
+                  #: in front of things means it wont change it if the directory already exists.
+                  group = ":${cfg.group}";
+                  user = ":${cfg.user}";
+                  mode = ":${
                 # Use volume permissions if set
                 if (value.flags ? chmod_d) then
                   value.flags.chmod_d
@@ -377,9 +380,10 @@ in
                 else
                   "755"
               }";
-            };
-          }
-        ) volumesWithoutVariables
+                };
+              }
+          )
+          volumesWithoutVariables
       );
 
       users.groups = lib.mkIf (cfg.group == "copyparty") {
